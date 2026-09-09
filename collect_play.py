@@ -33,13 +33,18 @@ def main():
             f"?id={PACKAGE_ID}&hl={lang}&gl={country}"
         )
 
-        result, _ = reviews(
-            PACKAGE_ID,
-            lang=lang,
-            country=country,
-            sort=Sort.NEWEST,
-            count=REVIEWS_PER_RUN,
-        )
+        try:
+            result, _ = reviews(
+                PACKAGE_ID,
+                lang=lang,
+                country=country,
+                sort=Sort.NEWEST,
+                count=REVIEWS_PER_RUN,
+            )
+        except Exception as e:
+            print(f"review fetch failed for {market}: {e}")
+            result = []
+
         for r in result:
             mention_id = f"play_{market}_{r['reviewId']}"
             if mention_id in seen:
@@ -57,16 +62,24 @@ def main():
                 collected_at,
             ])
 
-        detail = app(PACKAGE_ID, lang=lang, country=country)
-        one, two, three, four, five = detail["histogram"]
-        rating_rows.append([
-            collected_at, "google_play", market, detail["score"], detail["ratings"],
-            one, two, three, four, five,
-        ])
+        try:
+            detail = app(PACKAGE_ID, lang=lang, country=country)
+            one, two, three, four, five = detail["histogram"]
+            rating_rows.append([
+                collected_at,
+                "google_play",
+                market,
+                detail["score"],
+                detail["ratings"],
+                one, two, three, four, five,
+            ])
+        except Exception as e:
+            print(f"rating snapshot failed for {market}: {e}")
 
     if new_rows:
         mentions_ws.append_rows(new_rows, value_input_option="RAW")
-    ratings_ws.append_rows(rating_rows, value_input_option="RAW")
+    if rating_rows:
+        ratings_ws.append_rows(rating_rows, value_input_option="RAW")
 
     print(f"{len(new_rows)} new reviews, {len(rating_rows)} rating snapshots")
 
