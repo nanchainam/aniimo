@@ -1,8 +1,8 @@
-
 """Collect App Store reviews + rating snapshot for Aniimo (TH and ID) into Google Sheets."""
 
 import json
 import os
+import time
 import urllib.request
 from datetime import datetime, timezone
 
@@ -33,6 +33,16 @@ def fetch_reviews(country):
     return entries
 
 
+def fetch_detail(country):
+    url = f"https://itunes.apple.com/lookup?id={APP_ID}&country={country}"
+    for attempt in range(4):
+        results = fetch_json(url).get("results", [])
+        if results:
+            return results[0]
+        time.sleep(5 * (attempt + 1))
+    return None
+
+
 def main():
     gc = gspread.service_account_from_dict(
         json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
@@ -61,33 +71,31 @@ def main():
             if mention_id in seen:
                 continue
             seen.add(mention_id)
-            title = r["title"]["label"]
-            body = r["content"]["label"]
             new_rows.append([
                 mention_id,
                 "app_store",
                 market,
                 listing_url,
                 r["author"]["name"]["label"],
-                f"{title}\n\n{body}",
+                f"{r['title']['label']}\n\n{r['content']['label']}",
                 r["im:rating"]["label"],
                 r["updated"]["label"],
                 collected_at,
             ])
 
         try:
-            lookup = fetch_json(
-                f"https://itunes.apple.com/lookup?id={APP_ID}&country={country}"
-            )
-            detail = lookup["results"][0]
-            rating_rows.append([
-                collected_at,
-                "app_store",
-                market,
-                detail.get("averageUserRating", ""),
-                detail.get("userRatingCount", ""),
-                "", "", "", "", "",
-            ])
+            detail = fetch_detail(country)
+            if detail is None:
+                print(f"rating snapshot unavailable for {market}: lookup returned nothing")
+            else:
+                rating_rows.append([
+                    collected_at,
+                    "app_store",
+                    market,
+                    detail.get("averageUserRating", ""),
+                    detail.get("userRatingCount", ""),
+                    "", "", "", "", "",
+                ])
         except Exception as e:
             print(f"rating snapshot failed for {market}: {e}")
 
