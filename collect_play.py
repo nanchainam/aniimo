@@ -60,7 +60,7 @@ def main():
         detail = app(PACKAGE_ID, lang=lang, country=country)
         one, two, three, four, five = detail["histogram"]
         rating_rows.append([
-            collected_at, market, detail["score"], detail["ratings"],
+            collected_at, "google_play", market, detail["score"], detail["ratings"],
             one, two, three, four, five,
         ])
 
