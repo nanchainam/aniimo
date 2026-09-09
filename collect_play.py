@@ -69,8 +69,8 @@ def main():
                 collected_at,
                 "google_play",
                 market,
-                detail["score"],
-                detail["ratings"],
+                detail["score"] or 0,
+                detail["ratings"] or 0,
                 one, two, three, four, five,
             ])
         except Exception as e:
