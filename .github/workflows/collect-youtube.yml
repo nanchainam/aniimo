@@ -2,7 +2,7 @@ name: Collect YouTube discussion
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "45 5,11,17,23 * * *"   # 06:45 / 12:45 / 18:45 / 00:45 ICT
   workflow_dispatch:
 
 jobs:
