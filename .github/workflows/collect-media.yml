@@ -2,7 +2,7 @@ name: Collect news coverage
 
 on:
   schedule:
-    - cron: "15 */6 * * *"
+    - cron: "55 5,11,17,23 * * *"   # 06:55 / 12:55 / 18:55 / 00:55 ICT
   workflow_dispatch:
 
 jobs:
