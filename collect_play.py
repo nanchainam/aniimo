@@ -1,4 +1,4 @@
-"""Collect Google Play reviews + rating snapshot for Aniimo (TH and ID) into Google Sheets."""
+"""Collect Google Play reviews + rating snapshot for Aniimo (TH, ID and VN) into Google Sheets."""
 
 import json
 import os
@@ -9,7 +9,7 @@ from google_play_scraper import Sort, app, reviews
 
 PACKAGE_ID = os.environ["PLAY_PACKAGE_ID"]
 SHEET_ID = os.environ["SHEET_ID"]
-MARKETS = [("th", "th"), ("id", "id")]
+MARKETS = [("th", "th"), ("id", "id"), ("vn", "vi")]
 REVIEWS_PER_RUN = 200
 
 
@@ -22,6 +22,7 @@ def main():
     ratings_ws = sheet.worksheet("store_ratings")
 
     seen = set(mentions_ws.col_values(1))
+    seen_reviews = {value.split("_", 2)[2] for value in seen if value.startswith("play_") and len(value.split("_", 2)) == 3}
     collected_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     new_rows = []
     rating_rows = []
@@ -47,9 +48,11 @@ def main():
 
         for r in result:
             mention_id = f"play_{market}_{r['reviewId']}"
-            if mention_id in seen:
+            review_id = mention_id.split("_", 2)[2]
+            if mention_id in seen or review_id in seen_reviews:
                 continue
             seen.add(mention_id)
+            seen_reviews.add(review_id)
             new_rows.append([
                 mention_id,
                 "google_play",

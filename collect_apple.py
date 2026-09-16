@@ -1,4 +1,4 @@
-"""Collect App Store reviews + rating snapshot for Aniimo (TH and ID) into Google Sheets."""
+"""Collect App Store reviews + rating snapshot for Aniimo (TH, ID and VN) into Google Sheets."""
 
 import json
 import os
@@ -10,7 +10,7 @@ import gspread
 
 APP_ID = os.environ["APPLE_APP_ID"]
 SHEET_ID = os.environ["SHEET_ID"]
-MARKETS = ["th", "id"]
+MARKETS = ["th", "id", "vn"]
 MAX_PAGES = 5
 
 
@@ -52,6 +52,7 @@ def main():
     ratings_ws = sheet.worksheet("store_ratings")
 
     seen = set(mentions_ws.col_values(1))
+    seen_reviews = {value.split("_", 2)[2] for value in seen if value.startswith("apple_") and len(value.split("_", 2)) == 3}
     collected_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     new_rows = []
     rating_rows = []
@@ -68,9 +69,11 @@ def main():
 
         for r in entries:
             mention_id = f"apple_{market}_{r['id']['label']}"
-            if mention_id in seen:
+            review_id = mention_id.split("_", 2)[2]
+            if mention_id in seen or review_id in seen_reviews:
                 continue
             seen.add(mention_id)
+            seen_reviews.add(review_id)
             new_rows.append([
                 mention_id,
                 "app_store",

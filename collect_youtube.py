@@ -1,4 +1,4 @@
-"""Collect Thai and Indonesian YouTube discussion of Aniimo into Google Sheets.
+"""Collect Thai, Indonesian and Vietnamese YouTube discussion of Aniimo into Google Sheets.
 
 Market is deliberately left blank. YouTube's relevanceLanguage and regionCode are
 hints, not filters, so the search that found a video says nothing reliable about
@@ -19,6 +19,8 @@ SHEET_ID = os.environ["SHEET_ID"]
 API = "https://www.googleapis.com/youtube/v3/"
 
 SEARCHES = [
+    ("Aniimo", "vi", "VN"),
+    ("Aniimo Việt Nam", "vi", "VN"),
     ("Aniimo", "th", "TH"),
     ("Aniimo เกม", "th", "TH"),
     ("Aniimo", "id", "ID"),

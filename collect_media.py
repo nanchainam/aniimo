@@ -1,4 +1,4 @@
-"""Collect Thai and Indonesian news coverage of Aniimo into Google Sheets."""
+"""Collect Thai, Indonesian and Vietnamese news coverage of Aniimo into Google Sheets."""
 
 import hashlib
 import json
@@ -17,6 +17,7 @@ SHEET_ID = os.environ["SHEET_ID"]
 QUERIES = {
     "TH": [("Aniimo", "th", "TH"), ("Aniimo เกม", "th", "TH"), ("Aniimo มือถือ", "th", "TH")],
     "ID": [("Aniimo", "id", "ID"), ("Aniimo game", "id", "ID"), ("Aniimo rilis", "id", "ID")],
+    "VN": [("Aniimo", "vi", "VN"), ("Aniimo ra mắt", "vi", "VN"), ("Aniimo đánh giá", "vi", "VN")],
 }
 
 
@@ -41,6 +42,7 @@ def main():
     ws = gc.open_by_key(SHEET_ID).worksheet("raw_mentions")
 
     seen = set(ws.col_values(1))
+    seen_articles = {value.split("_", 2)[2] for value in seen if value.startswith("news_") and len(value.split("_", 2)) == 3}
     collected_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     new_rows = []
 
@@ -62,9 +64,10 @@ def main():
                 # under several query strings with different redirect URLs.
                 digest = hashlib.sha1(title.encode("utf-8")).hexdigest()[:16]
                 mention_id = f"news_{market}_{digest}"
-                if mention_id in seen:
+                if mention_id in seen or digest in seen_articles:
                     continue
                 seen.add(mention_id)
+                seen_articles.add(digest)
 
                 source_el = item.find("source")
                 outlet = clean(source_el.text) if source_el is not None else ""
