@@ -1,5 +1,7 @@
 """Collect App Store reviews and ratings for TH, ID and VN."""
 import json
+import gzip
+from urllib.parse import urlsplit, parse_qsl, urlencode
 import os
 import time
 import urllib.request
@@ -16,7 +18,8 @@ MAX_PAGES = 5
 
 def fetch_json(url):
     with urllib.request.urlopen(url, timeout=30) as resp:
-        return json.load(resp)
+        body = resp.read()
+        return json.loads(gzip.decompress(body) if body[:2] == b"\x1f\x8b" else body)
 
 def fetch_rss_reviews(country):
     entries = []
@@ -75,7 +78,7 @@ def parse_web_reviews(html, country):
             }
     return list(entries.values())
 
-def fetch_reviews(country):
+def fetch_sample_reviews(country):
     try:
         entries = fetch_rss_reviews(country)
     except Exception as e:
@@ -89,6 +92,56 @@ def fetch_reviews(country):
         entries = parse_web_reviews(response.read().decode("utf-8"), country)
     print(f"{country.upper()}: {len(entries)} reviews from public page (page sample, not all reviews)")
     return entries
+
+def fetch_paged_reviews(country):
+    path = f"/v1/catalog/{country}/apps/{APP_ID}/reviews"
+    next_page = path + "?platform=web&limit=20&l=en-GB"
+    visited, entries = set(), {}
+    pages = 0
+    while next_page:
+        parsed = urlsplit(next_page)
+        if parsed.scheme or parsed.netloc or parsed.path != path:
+            raise ValueError("Unexpected App Store pagination URL")
+        if next_page in visited or pages >= 1000:
+            raise ValueError("App Store pagination did not terminate; collection incomplete")
+        visited.add(next_page)
+        query = dict(parse_qsl(parsed.query))
+        query.update(platform="web", limit="20")
+        payload = fetch_json("https://apps.apple.com/api/apps" + path + "?" + urlencode(query))
+        if not isinstance(payload.get("data"), list):
+            raise ValueError("App Store review response schema missing")
+        for item in payload["data"]:
+            r = item.get("attributes", {})
+            if item.get("type") != "user-reviews" or not item.get("id"):
+                raise ValueError("Invalid App Store review identity")
+            if not str(r.get("review", "")).strip():
+                continue
+            datetime.fromisoformat(r["date"].replace("Z", "+00:00"))
+            if r.get("rating") not in [1, 2, 3, 4, 5]:
+                raise ValueError("Invalid review rating")
+            entries[str(item["id"])] = {
+                "id": {"label": str(item["id"])},
+                "author": {"name": {"label": r.get("userName", "")}},
+                "title": {"label": r.get("title", "")},
+                "content": {"label": r["review"]},
+                "im:rating": {"label": str(r["rating"])},
+                "updated": {"label": r["date"]},
+            }
+        pages += 1
+        next_page = payload.get("next")
+        if next_page:
+            time.sleep(0.2)
+    print(f"{country.upper()}: {len(entries)} reviews across {pages} pages; end reached")
+    return list(entries.values())
+
+
+def fetch_reviews(country):
+    try:
+        return fetch_paged_reviews(country)
+    except Exception as e:
+        print(f"WARNING {country.upper()}: full collection unavailable: {e}; fallback may be incomplete")
+        return fetch_sample_reviews(country)
+
 
 def fetch_detail(country):
     url = f"https://itunes.apple.com/lookup?id={APP_ID}&country={country}"
