@@ -5,6 +5,8 @@ from urllib.parse import urlsplit, parse_qsl, urlencode
 import os
 import time
 import urllib.request
+import urllib.error
+from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from datetime import datetime, timezone
 import gspread
@@ -17,9 +19,25 @@ MARKETS = ["th", "id", "vn"]
 MAX_PAGES = 5
 
 def fetch_json(url):
-    with urllib.request.urlopen(url, timeout=30) as resp:
-        body = resp.read()
-        return json.loads(gzip.decompress(body) if body[:2] == b"\x1f\x8b" else body)
+    for attempt in range(5):
+        try:
+            with urllib.request.urlopen(url, timeout=30) as resp:
+                body = resp.read()
+                return json.loads(gzip.decompress(body) if body[:2] == b"\x1f\x8b" else body)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (429, 500, 502, 503, 504) or attempt == 4:
+                raise
+            delay = 15 * (2 ** attempt)
+            retry_after = exc.headers.get("Retry-After", "")
+            if retry_after.isdigit():
+                delay = max(delay, int(retry_after))
+            elif retry_after:
+                try:
+                    delay = max(delay, (parsedate_to_datetime(retry_after) - datetime.now(timezone.utc)).total_seconds())
+                except (ValueError, TypeError):
+                    pass
+            print(f"Apple HTTP {exc.code}; waiting {delay:.0f}s before retry {attempt + 1}", flush=True)
+            time.sleep(delay)
 
 def fetch_rss_reviews(country):
     entries = []
@@ -130,7 +148,7 @@ def fetch_paged_reviews(country):
         pages += 1
         next_page = payload.get("next")
         if next_page:
-            time.sleep(0.2)
+            time.sleep(3)
     print(f"{country.upper()}: {len(entries)} reviews across {pages} pages; end reached")
     return list(entries.values())
 
