@@ -1,0 +1,51 @@
+name: Aniimo AI review
+
+on:
+  schedule:
+    # GitHub cron uses UTC: 02:00–16:00 = 09:00–23:00 Asia/Bangkok.
+    - cron: '0 2-16 * * *'
+  workflow_dispatch:
+
+permissions: {}
+concurrency:
+  group: aniimo-ai-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SITE_GATEWAY_TOKEN: ${{ secrets.ANIIMO_SITE_GATEWAY_TOKEN }}
+      REVIEW_TOKEN: ${{ secrets.ANIIMO_REVIEW_TOKEN }}
+    steps:
+      - name: Review up to 10 pending records
+        shell: python
+        run: |
+          import json, os, sys, urllib.request, urllib.error
+          gateway = os.environ.get('SITE_GATEWAY_TOKEN', '')
+          token = os.environ.get('REVIEW_TOKEN', '')
+          if not gateway or not token:
+              sys.exit('Configure ANIIMO_SITE_GATEWAY_TOKEN and ANIIMO_REVIEW_TOKEN in repository Actions secrets.')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          client = urllib.request.build_opener(NoRedirect)
+          for slot in range(10):
+              request = urllib.request.Request(
+                  'https://aniimo-community-monitor.nan-chainam.chatgpt.site/api/scheduled-review',
+                  data=json.dumps({'slot': slot}).encode(), method='POST',
+                  headers={'Content-Type': 'application/json',
+                           'OAI-Sites-Authorization': 'Bearer ' + gateway,
+                           'Authorization': 'Bearer ' + token})
+              try:
+                  with client.open(request, timeout=180) as response:
+                      result = json.load(response)
+              except urllib.error.HTTPError as error:
+                  # Never log tokens, response bodies or player data.
+                  sys.exit('Review stopped: HTTP ' + str(error.code))
+              except Exception:
+                  sys.exit('Review stopped: connection or response error. Inspect server run status before retrying.')
+              print('Slot', slot + 1, ':', result.get('state', 'unknown'))
+              if not result.get('continue', False):
+                  break
